@@ -8,6 +8,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.Plugin;
 import me.kkfish.kkfish;
+import me.kkfish.economy.EconomyService;
 import me.kkfish.gui.GUIHolder;
 import me.kkfish.managers.GUI;
 import me.kkfish.managers.Cmd;
@@ -223,24 +224,23 @@ public class GUIAction {
         boolean isRightClick = event.isRightClick();
         
         boolean purchaseSuccess = false;
+        EconomyService economyService = kkfishPlugin.getEconomyService();
         
         if (isLeftClick && configManager.canPurchaseWithVault(itemId)) {
-            net.milkbowl.vault.economy.Economy economy = kkfishPlugin.getEconomy();
-            if (economy == null) {
+            if (economyService == null || !economyService.isVaultReady()) {
                 player.sendMessage(messageManager.getMessage(player, "hook_purchase_vault_unavailable", "§cEconomy system is not enabled, unable to purchase with coins!"));
                 return;
             }
             
             double vaultPrice = configManager.getHookVaultPrice(itemId);
-            double balance = economy.getBalance(player);
+            double balance = economyService.getVaultBalance(player);
             
             if (balance < vaultPrice) {
                 player.sendMessage(messageManager.getMessage(player, "hook_purchase_insufficient_vault", "§cNot enough coins! Need %.2f more", vaultPrice - balance));
                 return;
             }
             
-            net.milkbowl.vault.economy.EconomyResponse response = economy.withdrawPlayer(player, vaultPrice);
-            if (!response.transactionSuccess()) {
+            if (!economyService.withdrawVault(player, vaultPrice)) {
                 player.sendMessage(messageManager.getMessage(player, "hook_purchase_deduct_failed", "§cFailed to deduct coins, please try again later."));
                 return;
             }

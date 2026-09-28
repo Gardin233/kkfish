@@ -24,7 +24,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import net.milkbowl.vault.economy.Economy;
 import me.kkfish.kkfish;
 import me.kkfish.managers.Config;
 import me.kkfish.managers.GUI;

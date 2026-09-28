@@ -1,4 +1,4 @@
-﻿# ==========================
+# ==========================
 # 基础消息
 # ==========================
 prefix: "&bkkfish > "
@@ -661,6 +661,7 @@ mode_switch_mode_vanilla: "原版钓鱼模式"
 mode_switch_usage: "&d用法: /kf toggle"
 mode_switch_success: "&a钓鱼模式切换成功！当前模式: %s"
 mode_switch_no_permission: "&d你没有权限切换钓鱼模式"
+mode_switch_vanilla_disabled: "&c原版钓鱼已被禁用，你现在只能使用插件钓鱼模式"
 
 # ==========================
 # Rod Template Messages

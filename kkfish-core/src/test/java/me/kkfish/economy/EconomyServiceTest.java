@@ -112,4 +112,21 @@ class EconomyServiceTest {
         assertEquals(0, pay.getVaultAmount());
         assertEquals(0, pay.getPointsAmount());
     }
+
+    @Test
+    void rewardUsesVaultWhenOnlyVaultProviderIsReady() {
+        assertEquals(EconomyService.RewardType.VAULT,
+                EconomyService.chooseRewardType(true, true, true, false));
+    }
+
+    @Test
+    void oldValueFallsBackToVaultWhenPointsPrimaryIsMissing() {
+        SellValue value = SellValue.oldValue(48);
+
+        EconomyService.SellPay pay = EconomyService.resolveSellPay(
+                value, "playerpoints", true, true, true, true, true, false);
+
+        assertEquals(48, pay.getVaultAmount());
+        assertEquals(0, pay.getPointsAmount());
+    }
 }

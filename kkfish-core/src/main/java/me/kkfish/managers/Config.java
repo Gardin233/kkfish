@@ -116,6 +116,10 @@ public class Config {
         return mainConfig.getBoolean("economy.sellgui", true);
     }
 
+    public String getVaultCurrency() {
+        return mainConfig.getString("economy.currency", "");
+    }
+
     private void initializeConfigs() {
         // 首次启动检测：在释放默认配置前判断服务器语言环境
         detectAndApplyLanguage();
@@ -1869,6 +1873,10 @@ public class Config {
         if (!mainConfig.contains("economy.sellgui")) {
             mainConfig.set("economy.sellgui", true);
             kkfish.log(plugin.getMessageManager().getMessageWithoutPrefix("config_add_missing_main", "添加缺失的主配置: %s", "economy.sellgui"));
+        }
+        if (!mainConfig.contains("economy.currency")) {
+            mainConfig.set("economy.currency", "");
+            kkfish.log(plugin.getMessageManager().getMessageWithoutPrefix("config_add_missing_main", "添加缺失的主配置: %s", "economy.currency"));
         }
     }
     

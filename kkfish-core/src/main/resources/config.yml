@@ -288,6 +288,9 @@ economy:
   primary: vault
   # primary 不可用时，是否自动尝试另一个可用经济系统
   fallback: true
+  # VaultUnlockedAPI 多币种支持。留空 / default / auto 表示使用经济插件默认币种
+  # 示例: gold / coin / vault:gold
+  currency: "CC"
   # 出售功能开关
   sell: true
   # 出售 GUI 功能开关

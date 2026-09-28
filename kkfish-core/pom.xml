@@ -30,6 +30,11 @@
         </dependency>
 
         <dependency>
+            <groupId>net.milkbowl.vault</groupId>
+            <artifactId>VaultUnlockedAPI</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>dev.aurelium</groupId>
             <artifactId>auraskills-api-bukkit</artifactId>
         </dependency>

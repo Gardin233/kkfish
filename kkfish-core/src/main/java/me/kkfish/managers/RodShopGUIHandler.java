@@ -17,6 +17,7 @@ import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import me.kkfish.economy.EconomyService;
 import me.kkfish.gui.GUIMenuLoader;
 import me.kkfish.integrations.CustomItemHook;
 import me.kkfish.kkfish;
@@ -391,23 +392,22 @@ public class RodShopGUIHandler {
         }
 
         boolean purchaseSuccess = false;
+        EconomyService economyService = plugin.getEconomyService();
 
         if (isLeftClick && hasVaultPrice) {
             // 金币购买
-            net.milkbowl.vault.economy.Economy economy = plugin.getEconomy();
-            if (economy == null) {
+            if (economyService == null || !economyService.isVaultReady()) {
                 player.sendMessage(messageManager.getMessage("rod_purchase_vault_unavailable", "§c经济系统未启用，无法使用金币购买！"));
                 return;
             }
 
-            double balance = economy.getBalance(player);
+            double balance = economyService.getVaultBalance(player);
             if (balance < vaultPrice) {
                 player.sendMessage(messageManager.getMessage("rod_purchase_insufficient_vault", "§c金币不足！还需要 %.2f 金币", vaultPrice - balance));
                 return;
             }
 
-            net.milkbowl.vault.economy.EconomyResponse response = economy.withdrawPlayer(player, vaultPrice);
-            if (!response.transactionSuccess()) {
+            if (!economyService.withdrawVault(player, vaultPrice)) {
                 player.sendMessage(messageManager.getMessage("rod_purchase_deduct_failed", "§c扣款失败，请稍后再试。"));
                 return;
             }

@@ -1,5 +1,6 @@
 package me.kkfish.economy;
-
+import java.math.BigDecimal;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
@@ -7,6 +8,7 @@ import java.util.UUID;
 
 import org.black_ixx.playerpoints.PlayerPointsAPI;
 import org.bukkit.OfflinePlayer;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.ServicesManager;
@@ -23,6 +25,9 @@ import me.kkfish.misc.MessageManager;
  * 提供单一入口查询经济可用性、存款、取款、查询余额、点数操作。</p>
  */
 public class EconomyService {
+
+    private static final String VAULT_UNLOCKED_ECONOMY_CLASS = "net.milkbowl.vault2.economy.Economy";
+    private static final String VAULT_UNLOCKED_RESPONSE_CLASS = "net.milkbowl.vault2.economy.EconomyResponse";
 
     public enum RewardType {
         VAULT,
@@ -72,7 +77,9 @@ public class EconomyService {
 
     private final kkfish plugin;
     private Economy economy;
+    private Object vaultUnlockedEconomy;
     private PlayerPointsAPI playerPointsAPI;
+    private boolean currencyConfigNoticeLogged;
 
     public EconomyService(kkfish plugin) {
         this.plugin = plugin;
@@ -88,29 +95,65 @@ public class EconomyService {
 
     private void setupEconomy() {
         MessageManager mm = plugin.getMessageManager();
-        if (plugin.getServer().getPluginManager().getPlugin("Vault") == null) {
-            kkfish.log(mm.getMessageWithoutPrefix("log.no_economy",
-                    "Vault or economy plugin not found! Economy features will be unavailable."));
-            economy = null;
-            return;
-        }
+        economy = findLegacyVaultEconomy();
+        vaultUnlockedEconomy = findVaultUnlockedEconomy();
 
-        RegisteredServiceProvider<Economy> rsp = plugin.getServer().getServicesManager().getRegistration(Economy.class);
-        if (rsp == null) {
-            kkfish.log(mm.getMessageWithoutPrefix("log.no_economy",
-                    "Vault or economy plugin not found! Economy features will be unavailable."));
-            economy = null;
-            return;
-        }
-
-        economy = rsp.getProvider();
-        if (economy != null) {
+        if (hasVaultProvider()) {
             kkfish.log(mm.getMessageWithoutPrefix("log.economy_success",
                     "Successfully connected to economy system~"));
+            logCurrencyConfiguration();
         } else {
             kkfish.log(mm.getMessageWithoutPrefix("log.no_economy",
                     "Vault or economy plugin not found! Economy features will be unavailable."));
         }
+    }
+
+    private Economy findLegacyVaultEconomy() {
+        RegisteredServiceProvider<Economy> rsp = plugin.getServer().getServicesManager().getRegistration(Economy.class);
+        return rsp != null ? rsp.getProvider() : null;
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private Object findVaultUnlockedEconomy() {
+        try {
+            Class<?> economyClass = Class.forName(VAULT_UNLOCKED_ECONOMY_CLASS);
+            RegisteredServiceProvider rsp = plugin.getServer().getServicesManager().getRegistration((Class) economyClass);
+            return rsp != null ? rsp.getProvider() : null;
+        } catch (ClassNotFoundException ignored) {
+            return null;
+        } catch (Throwable t) {
+            kkfish.log("§eVaultUnlocked economy lookup failed: " + t.getMessage());
+            return null;
+        }
+    }
+
+    private void logCurrencyConfiguration() {
+        String configuredCurrency = getConfiguredVaultCurrency();
+        if (configuredCurrency == null) {
+            return;
+        }
+
+        if (vaultUnlockedEconomy == null) {
+            kkfish.log("§eVaultUnlocked currency '" + configuredCurrency
+                    + "' is configured, but VaultUnlockedAPI is not available. Falling back to default Vault behavior.");
+            return;
+        }
+
+        if (!supportsVaultUnlockedMultiCurrency()) {
+            kkfish.log("§eVaultUnlocked currency '" + configuredCurrency
+                    + "' is configured, but the current economy provider does not support multiple currencies.");
+            return;
+        }
+
+        if (!vaultUnlockedHasCurrency(configuredCurrency)) {
+            String defaultCurrency = getVaultUnlockedDefaultCurrency();
+            kkfish.log("§eVaultUnlocked currency '" + configuredCurrency
+                    + "' was not found. Falling back to "
+                    + (defaultCurrency != null ? ("default currency '" + defaultCurrency + "'") : "provider default currency") + ".");
+            return;
+        }
+
+        kkfish.log("§aVaultUnlocked currency selected: " + configuredCurrency);
     }
 
     private void setupPlayerPoints() {
@@ -269,7 +312,7 @@ public class EconomyService {
                 plugin.getCustomConfig().isEconomyEnabled(),
                 plugin.getCustomConfig().isEconomySystemEnabled(),
                 plugin.getCustomConfig().isPlayerPointsEconomyEnabled(),
-                economy != null,
+                hasVaultProvider(),
                 playerPointsAPI != null,
                 plugin.getCustomConfig().getPrimaryEconomy(),
                 plugin.getCustomConfig().isEconomyFallbackEnabled());
@@ -282,7 +325,7 @@ public class EconomyService {
         if (!plugin.getCustomConfig().isEconomyEnabled()) {
             return false;
         }
-        return (plugin.getCustomConfig().isEconomySystemEnabled() && economy != null)
+        return (plugin.getCustomConfig().isEconomySystemEnabled() && hasVaultProvider())
                 || (plugin.getCustomConfig().isPlayerPointsEconomyEnabled() && playerPointsAPI != null);
     }
 
@@ -297,6 +340,14 @@ public class EconomyService {
         return economy;
     }
 
+    public boolean isVaultReady() {
+        return plugin.getCustomConfig().isEconomySystemEnabled() && hasVaultProvider();
+    }
+
+    public String getEffectiveVaultCurrency() {
+        return resolveVaultUnlockedCurrency();
+    }
+
     public PlayerPointsAPI getPlayerPointsAPI() {
         return playerPointsAPI;
     }
@@ -309,7 +360,7 @@ public class EconomyService {
                 plugin.getCustomConfig().isEconomyEnabled(),
                 plugin.getCustomConfig().isEconomySystemEnabled(),
                 plugin.getCustomConfig().isPlayerPointsEconomyEnabled(),
-                economy != null,
+                hasVaultProvider(),
                 playerPointsAPI != null);
     }
 
@@ -318,9 +369,7 @@ public class EconomyService {
 
         boolean success = true;
         if (pay.getVaultAmount() > 0) {
-            success = economy != null
-                    && economy.depositPlayer(player, pay.getVaultAmount()).transactionSuccess()
-                    && success;
+            success = depositVault(player, pay.getVaultAmount()) && success;
         }
 
         if (pay.getPointsAmount() > 0) {
@@ -341,7 +390,7 @@ public class EconomyService {
         if (player == null || amount <= 0) return false;
         RewardType rewardType = getRewardType();
         if (rewardType == RewardType.VAULT) {
-            return economy.depositPlayer(player, amount).transactionSuccess();
+            return depositVault(player, amount);
         }
         if (rewardType == RewardType.PLAYER_POINTS) {
             return givePoints(player.getUniqueId(), amountToPoints(amount));
@@ -360,7 +409,7 @@ public class EconomyService {
         if (player == null || amount <= 0) return false;
         RewardType rewardType = getRewardType();
         if (rewardType == RewardType.VAULT) {
-            return economy.withdrawPlayer(player, amount).transactionSuccess();
+            return withdrawVault(player, amount);
         }
         if (rewardType == RewardType.PLAYER_POINTS) {
             return takePoints(player.getUniqueId(), amountToPoints(amount));
@@ -378,12 +427,65 @@ public class EconomyService {
         if (player == null) return 0;
         RewardType rewardType = getRewardType();
         if (rewardType == RewardType.VAULT) {
-            return economy.getBalance(player);
+            return getVaultBalance(player);
         }
         if (rewardType == RewardType.PLAYER_POINTS) {
             return getPoints(player.getUniqueId());
         }
         return 0;
+    }
+
+    public double getVaultBalance(OfflinePlayer player) {
+        if (player == null || !isVaultReady()) return 0;
+
+        if (vaultUnlockedEconomy != null) {
+            Object result = hasConfiguredVaultCurrency()
+                    ? invokeVaultUnlocked("balance",
+                            new Class<?>[]{String.class, UUID.class, String.class, String.class},
+                            plugin.getName(), player.getUniqueId(), resolveWorldName(player), resolveVaultUnlockedCurrency())
+                    : invokeVaultUnlocked("balance",
+                            new Class<?>[]{String.class, UUID.class},
+                            plugin.getName(), player.getUniqueId());
+            if (result instanceof BigDecimal) {
+                return ((BigDecimal) result).doubleValue();
+            }
+        }
+
+        return economy != null ? economy.getBalance(player) : 0;
+    }
+
+    public boolean depositVault(OfflinePlayer player, double amount) {
+        if (player == null || amount <= 0 || !isVaultReady()) return false;
+
+        if (vaultUnlockedEconomy != null) {
+            Object response = hasConfiguredVaultCurrency()
+                    ? invokeVaultUnlocked("deposit",
+                            new Class<?>[]{String.class, UUID.class, String.class, String.class, BigDecimal.class},
+                            plugin.getName(), player.getUniqueId(), resolveWorldName(player), resolveVaultUnlockedCurrency(), toBigDecimal(amount))
+                    : invokeVaultUnlocked("deposit",
+                            new Class<?>[]{String.class, UUID.class, BigDecimal.class},
+                            plugin.getName(), player.getUniqueId(), toBigDecimal(amount));
+            return isSuccessfulVaultUnlockedResponse(response);
+        }
+
+        return economy != null && economy.depositPlayer(player, amount).transactionSuccess();
+    }
+
+    public boolean withdrawVault(OfflinePlayer player, double amount) {
+        if (player == null || amount <= 0 || !isVaultReady()) return false;
+
+        if (vaultUnlockedEconomy != null) {
+            Object response = hasConfiguredVaultCurrency()
+                    ? invokeVaultUnlocked("withdraw",
+                            new Class<?>[]{String.class, UUID.class, String.class, String.class, BigDecimal.class},
+                            plugin.getName(), player.getUniqueId(), resolveWorldName(player), resolveVaultUnlockedCurrency(), toBigDecimal(amount))
+                    : invokeVaultUnlocked("withdraw",
+                            new Class<?>[]{String.class, UUID.class, BigDecimal.class},
+                            plugin.getName(), player.getUniqueId(), toBigDecimal(amount));
+            return isSuccessfulVaultUnlockedResponse(response);
+        }
+
+        return economy != null && economy.withdrawPlayer(player, amount).transactionSuccess();
     }
 
     /**
@@ -416,6 +518,120 @@ public class EconomyService {
 
     private int amountToPoints(double amount) {
         return (int) Math.max(1, Math.round(amount));
+    }
+
+    private boolean hasVaultProvider() {
+        return economy != null || vaultUnlockedEconomy != null;
+    }
+
+    private String getConfiguredVaultCurrency() {
+        String configured = plugin.getCustomConfig().getVaultCurrency();
+        if (configured == null) return null;
+        configured = configured.trim();
+        if (configured.isEmpty()
+                || "default".equalsIgnoreCase(configured)
+                || "auto".equalsIgnoreCase(configured)) {
+            return null;
+        }
+        return configured;
+    }
+
+    private boolean hasConfiguredVaultCurrency() {
+        return resolveVaultUnlockedCurrency() != null;
+    }
+
+    private String resolveVaultUnlockedCurrency() {
+        String configuredCurrency = getConfiguredVaultCurrency();
+        if (configuredCurrency == null || vaultUnlockedEconomy == null) {
+            return null;
+        }
+
+        if (!supportsVaultUnlockedMultiCurrency()) {
+            logCurrencyConfigIgnoredOnce("configured, but the economy provider does not support multiple currencies");
+            return null;
+        }
+
+        if (vaultUnlockedHasCurrency(configuredCurrency)) {
+            return configuredCurrency;
+        }
+
+        logCurrencyConfigIgnoredOnce("configured, but the currency does not exist in the current provider");
+        return null;
+    }
+
+    private void logCurrencyConfigIgnoredOnce(String reason) {
+        if (currencyConfigNoticeLogged) {
+            return;
+        }
+        String configuredCurrency = getConfiguredVaultCurrency();
+        if (configuredCurrency != null) {
+            kkfish.log("§eVaultUnlocked currency '" + configuredCurrency + "' is " + reason + ". Using provider default currency instead.");
+            currencyConfigNoticeLogged = true;
+        }
+    }
+
+    private boolean supportsVaultUnlockedMultiCurrency() {
+        Object result = invokeVaultUnlocked("hasMultiCurrencySupport", new Class<?>[0]);
+        return result instanceof Boolean && (Boolean) result;
+    }
+
+    private boolean vaultUnlockedHasCurrency(String currency) {
+        Object result = invokeVaultUnlocked("hasCurrency", new Class<?>[]{String.class}, currency);
+        return result instanceof Boolean && (Boolean) result;
+    }
+
+    private String getVaultUnlockedDefaultCurrency() {
+        Object result = invokeVaultUnlocked("getDefaultCurrency", new Class<?>[]{String.class}, plugin.getName());
+        return result instanceof String ? (String) result : null;
+    }
+
+    private Object invokeVaultUnlocked(String methodName, Class<?>[] parameterTypes, Object... args) {
+        if (vaultUnlockedEconomy == null) {
+            return null;
+        }
+        try {
+            Method method = vaultUnlockedEconomy.getClass().getMethod(methodName, parameterTypes);
+            return method.invoke(vaultUnlockedEconomy, args);
+        } catch (Throwable t) {
+            kkfish.log("§eVaultUnlocked call failed: " + methodName + " - " + t.getMessage());
+            return null;
+        }
+    }
+
+    private boolean isSuccessfulVaultUnlockedResponse(Object response) {
+        if (response == null) {
+            return false;
+        }
+        try {
+            Method successMethod = response.getClass().getMethod("transactionSuccess");
+            Object result = successMethod.invoke(response);
+            return result instanceof Boolean && (Boolean) result;
+        } catch (Throwable ignored) {
+            try {
+                if (!VAULT_UNLOCKED_RESPONSE_CLASS.equals(response.getClass().getName())) {
+                    return false;
+                }
+                Field typeField = response.getClass().getField("type");
+                Object type = typeField.get(response);
+                return type != null && "SUCCESS".equals(String.valueOf(type));
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+    }
+
+    private BigDecimal toBigDecimal(double amount) {
+        return BigDecimal.valueOf(amount);
+    }
+
+    private String resolveWorldName(OfflinePlayer player) {
+        if (player instanceof Player) {
+            return ((Player) player).getWorld().getName();
+        }
+        if (player.isOnline() && player.getPlayer() != null) {
+            return player.getPlayer().getWorld().getName();
+        }
+        return plugin.getServer().getWorlds().isEmpty() ? "world" : plugin.getServer().getWorlds().get(0).getName();
     }
 
     private static boolean isPlayerPointsName(String name) {

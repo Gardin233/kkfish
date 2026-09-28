@@ -113,7 +113,6 @@ public class RootService implements AutoCloseable {
         // 3. 经济服务
         economyService = new EconomyService(plugin);
         economyService.initialize();
-        plugin.setEconomyInternal(economyService.getEconomy());
         plugin.setPlayerPointsInternal(economyService.getPlayerPointsAPI());
 
         // 4. 季节服务

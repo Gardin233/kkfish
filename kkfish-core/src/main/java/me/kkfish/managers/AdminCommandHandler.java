@@ -174,6 +174,12 @@ public class AdminCommandHandler {
             return;
         }
 
+        if (plugin.getCustomConfig().isVanillaFishingDisabled()) {
+            plugin.setPlayerFishingMode(player.getUniqueId(), false);
+            sender.sendMessage(messageManager.getMessage("mode_switch_vanilla_disabled", "&cVanilla fishing is disabled, you can only use plugin fishing mode"));
+            return;
+        }
+
         boolean currentIsVanilla = plugin.isPlayerInVanillaMode(player.getUniqueId());
         boolean newIsVanilla = !currentIsVanilla;
 

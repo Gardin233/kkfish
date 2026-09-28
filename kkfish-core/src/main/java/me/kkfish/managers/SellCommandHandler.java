@@ -17,8 +17,6 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
-import net.milkbowl.vault.economy.Economy;
-
 import me.kkfish.economy.EconomyService;
 import me.kkfish.economy.SellValue;
 import me.kkfish.kkfish;

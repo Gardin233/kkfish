@@ -1,4 +1,4 @@
-﻿# ==========================
+# ==========================
 # Basic Messages
 # ==========================
 prefix: "&bkkfish > "
@@ -660,6 +660,7 @@ mode_switch_mode_vanilla: "Vanilla Fishing Mode"
 mode_switch_usage: "&dUsage: /kf toggle"
 mode_switch_success: "&aFishing mode switched successfully! Current mode: %s"
 mode_switch_no_permission: "&dYou don't have permission to switch fishing mode"
+mode_switch_vanilla_disabled: "&cVanilla fishing is disabled, you can only use plugin fishing mode"
 
 # ==========================
 # Rod Template Messages

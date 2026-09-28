@@ -7,7 +7,6 @@ import org.bukkit.*;
 import org.bukkit.plugin.*;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import net.milkbowl.vault.economy.Economy;
 import me.kkfish.managers.Fish;
 import me.kkfish.managers.DB;
 import me.kkfish.managers.GUI;
@@ -43,7 +42,6 @@ public class kkfish extends JavaPlugin {
     private Cmd cmd;
     private DB db;
     private MessageManager messageManager;
-    private Economy economy;
     private PlayerPointsAPI playerPointsAPI;
     private EconomyService economyService;
     private GUI gui;
@@ -100,7 +98,6 @@ public class kkfish extends JavaPlugin {
         
         // 从 RootService 同步字段，保持向后兼容的 getter
         economyService = rootService.getEconomyService();
-        economy = economyService != null ? economyService.getEconomy() : null;
         playerPointsAPI = economyService != null ? economyService.getPlayerPointsAPI() : null;
         seasonsService = rootService.getSeasonsService();
         db = rootService.getDb();
@@ -180,10 +177,6 @@ public class kkfish extends JavaPlugin {
         return config;
     }
     
-    public Economy getEconomy() {
-        return economy;
-    }
-    
     /**
      * @return 统一经济服务
      */
@@ -248,10 +241,16 @@ public class kkfish extends JavaPlugin {
     }
 
     public boolean isPlayerInVanillaMode(UUID playerId) {
+        if (config != null && config.isVanillaFishingDisabled()) {
+            return false;
+        }
         return playerFishingMode.getOrDefault(playerId, false);
     }
 
     public void setPlayerFishingMode(UUID playerId, boolean vanillaMode) {
+        if (config != null && config.isVanillaFishingDisabled()) {
+            vanillaMode = false;
+        }
         playerFishingMode.put(playerId, vanillaMode);
     }
 
@@ -277,13 +276,6 @@ public class kkfish extends JavaPlugin {
      */
     public void setFoliaSchedulerInternal(ServerImplementation scheduler) {
         this.foliaScheduler = scheduler;
-    }
-
-    /**
-     * 供 RootService 在启动期间设置经济实例。
-     */
-    public void setEconomyInternal(Economy economy) {
-        this.economy = economy;
     }
 
     /**

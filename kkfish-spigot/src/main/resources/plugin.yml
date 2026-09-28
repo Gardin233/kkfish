@@ -4,7 +4,7 @@ main: me.kkfish.kkfish
 api-version: 1.13
 description: Stardew Valley Style Fishing Plugin
 author: gukuan
-softdepend: [Vault, PlayerPoints, RealisticSeasons, ItemsAdder, Oraxen, Nexo, CraftEngine, PlaceholderAPI]
+softdepend: [Vault, VaultUnlocked, PlayerPoints, RealisticSeasons, ItemsAdder, Oraxen, Nexo, CraftEngine, PlaceholderAPI]
 
 commands:
   kkfish:
